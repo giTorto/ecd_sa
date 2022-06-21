@@ -2,12 +2,14 @@ from typing import List, Union
 import argparse
 import json
 
+
 def create_argument_parser():
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-d','--data-files',  action="store", dest="data_files",nargs='+',
                         help='the training file')
 
     return parser
+
 
 class DataLoader:
 
@@ -18,6 +20,15 @@ class DataLoader:
         valence = fu["valence"]
 
         return doc_tokens, iobs, valence
+
+    @staticmethod
+    def build_mask(iobs):
+        final_mask = []
+        for iob in iobs:
+            final_mask.append(
+                0 if iob == "O" else 1
+            )
+        return final_mask
 
     @staticmethod
     def generate_samples(filename):
@@ -32,15 +43,17 @@ class DataLoader:
         tokens = []
         iobs = []
         valences = []
+        mask = []
         for key, note in data.items():
             for key, turn in note.get("turns").items():
                 for id, fu in turn.items():
                     tokenized_text, iob, valence = DataLoader.parse_single_fu(fu)
                     tokens.append(tokenized_text)
                     iobs.append(iob)
+                    mask.append(DataLoader.build_mask(iob))
                     valences.append(valence)
 
-        return tokens, iobs, valences
+        return tokens, iobs, valences, mask
 
     @staticmethod
     def map_mask_tokenizer(data_tokens, data_mask_old, tokenizer):
@@ -73,16 +86,17 @@ class DataLoader:
         if isinstance(data_files, str):
             data_files = [data_files]
 
-        all_tokens, all_iobs, all_valences = [], [], []
+        all_tokens, all_iobs, all_valences, all_masks = [], [], [], []
         for file in data_files:
-            data_tokens, iobs, valences = DataLoader.generate_samples(file)
+            data_tokens, iobs, valences, mask = DataLoader.generate_samples(file)
             all_tokens.extend(data_tokens)
             all_iobs.extend(iobs)
             all_valences.extend(valences)
-        return all_tokens, all_iobs, all_valences
+            all_masks.extend(mask)
+        return all_tokens, all_iobs, all_valences, all_masks
 
     def __init__(self, data_files):
-        self.tokens, self.iobs, self.valences = DataLoader.load_data_files(data_files)
+        self.tokens, self.iobs, self.valences, self.masks = DataLoader.load_data_files(data_files)
 
 
 def main():
@@ -91,10 +105,9 @@ def main():
     args = parser.parse_args()
 
     data_object = DataLoader(args.data_files)
-    for tokens, labels in zip(data_object.tokens, data_object.iobs):
-        if len(tokens) != len(labels):
-            print("FUUUCK")
+    for tokens, labels, mask in zip(data_object.tokens, data_object.iobs, data_object.masks):
 
+        print(tokens,labels, mask)
 
 
 # Press the green button in the gutter to run the script.
