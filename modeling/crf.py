@@ -1,7 +1,8 @@
 import sklearn_crfsuite
 from data_loading.loader import DataLoader
 from sklearn_crfsuite import metrics
-
+import argparse
+# https://sklearn-crfsuite.readthedocs.io/en/latest/tutorial.html#evaluation
 
 class CRFTagger:
 
@@ -81,14 +82,51 @@ class CRFTagger:
 
         return predictions
 
-    def evaluate(self, predictions, reference):
+    def evaluate(self, predictions, reference, remove_o=False):
 
         # group B and I results
         sorted_labels = sorted(
             self.labels,
             key=lambda name: (name[1:], name[0])
         )
-        print(metrics.flat_classification_report(
-            predictions, reference, labels=sorted_labels, digits=3
-        ))
+        if remove_o:
+            sorted_labels.remove("O")
 
+        results = metrics.flat_classification_report(
+            reference, predictions, labels=sorted_labels
+        )
+
+        print(results)
+        return results
+
+
+def create_argument_parser():
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('--train','--training-files',  action="store", dest="training_files",nargs='+',
+                        help='the training file')
+    parser.add_argument('--test','--test-files',  action="store", dest="test_files",nargs='+',
+                        help='the test file')
+
+    return parser
+
+
+def main():
+    # Use a breakpoint in the code line below to debug your script.
+    parser = create_argument_parser()
+    args = parser.parse_args()
+
+    training_data = DataLoader(args.training_files, keep_iob=False)
+    test_data = DataLoader(args.test_files, keep_iob=False)
+
+    crf_tagger = CRFTagger(c1=0.30, c2=0.3,use_mask=True)
+
+    crf_tagger.train(training_data)
+
+    predictions = crf_tagger.predict(test_data)
+
+    crf_tagger.evaluate(predictions, test_data.iobs, remove_o=True)
+
+
+# Press the green button in the gutter to run the script.
+if __name__ == '__main__':
+    main()

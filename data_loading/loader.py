@@ -14,9 +14,13 @@ def create_argument_parser():
 class DataLoader:
 
     @staticmethod
-    def parse_single_fu(fu):
+    def strip_iob_tags(iobs):
+        return [x.replace("B-", "").replace("I-","") for x in iobs]
+
+    @staticmethod
+    def parse_single_fu(fu, keep_iob=True):
         doc_tokens = fu["text"].lower().split()
-        iobs = fu["iob"]
+        iobs = fu["iob"] if keep_iob else DataLoader.strip_iob_tags(fu["iob"])
         valence = fu["valence"]
 
         return doc_tokens, iobs, valence
@@ -31,7 +35,7 @@ class DataLoader:
         return final_mask
 
     @staticmethod
-    def generate_samples(filename):
+    def generate_samples(filename, keep_iob=True):
         """
         read input file and generate samples. every EC candidate is considered as one sample.
         EC candidate is represented using a mask over the input Functional unit. A [B C] D E -> mask:[1,3]
@@ -47,7 +51,7 @@ class DataLoader:
         for key, note in data.items():
             for key, turn in note.get("turns").items():
                 for id, fu in turn.items():
-                    tokenized_text, iob, valence = DataLoader.parse_single_fu(fu)
+                    tokenized_text, iob, valence = DataLoader.parse_single_fu(fu, keep_iob=keep_iob)
                     tokens.append(tokenized_text)
                     iobs.append(iob)
                     mask.append(DataLoader.build_mask(iob))
@@ -82,21 +86,21 @@ class DataLoader:
         return data_mask_new
 
     @staticmethod
-    def load_data_files(data_files: Union[List[str], str]):
+    def load_data_files(data_files: Union[List[str], str], keep_iob=True):
         if isinstance(data_files, str):
             data_files = [data_files]
 
         all_tokens, all_iobs, all_valences, all_masks = [], [], [], []
         for file in data_files:
-            data_tokens, iobs, valences, mask = DataLoader.generate_samples(file)
+            data_tokens, iobs, valences, mask = DataLoader.generate_samples(file, keep_iob=keep_iob)
             all_tokens.extend(data_tokens)
             all_iobs.extend(iobs)
             all_valences.extend(valences)
             all_masks.extend(mask)
         return all_tokens, all_iobs, all_valences, all_masks
 
-    def __init__(self, data_files):
-        self.tokens, self.iobs, self.valences, self.masks = DataLoader.load_data_files(data_files)
+    def __init__(self, data_files, keep_iob=True):
+        self.tokens, self.iobs, self.valences, self.masks = DataLoader.load_data_files(data_files, keep_iob=keep_iob)
 
 
 def main():
