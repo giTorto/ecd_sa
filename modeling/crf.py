@@ -2,12 +2,13 @@ import sklearn_crfsuite
 from data_loading.loader import DataLoader
 from sklearn_crfsuite import metrics
 import argparse
+from evaluation.span_prediction import get_span_indexes, group_labels, evaluate
 # https://sklearn-crfsuite.readthedocs.io/en/latest/tutorial.html#evaluation
 
 class CRFTagger:
 
     @staticmethod
-    def word2features(sent, i, mask):
+    def word2features(sent, i, mask, valence=None):
         word = sent[i]
 
         features = {
@@ -19,6 +20,9 @@ class CRFTagger:
         if mask is not None:
             wmask = mask[i]
             features['mask'] = bool(wmask)
+        if valence is not None:
+            features['valence'] = valence if valence == 0 else 1
+
         if i > 0:
             word1 = sent[i - 1]
             features.update({
@@ -43,13 +47,14 @@ class CRFTagger:
         else:
             features['EOS'] = True
 
+        print(features)
         return features
 
     @staticmethod
-    def sent2features(sent, mask):
-        return [CRFTagger.word2features(sent, i, mask) for i in range(len(sent))]
+    def sent2features(sent, mask, valence=None):
+        return [CRFTagger.word2features(sent, i, mask, valence) for i in range(len(sent))]
 
-    def __init__(self, c1=0.1, c2=0.1, max_iterations=100, use_mask=False):
+    def __init__(self, c1=0.1, c2=0.1, max_iterations=100, use_mask=False, use_valence=False):
 
         self.crf = sklearn_crfsuite.CRF(
             algorithm='lbfgs',
@@ -59,12 +64,13 @@ class CRFTagger:
             all_possible_transitions=True
         )
         self.use_mask = use_mask
+        self.use_valence = use_valence
         self.labels = None
 
     def featurize(self, training_dataset: DataLoader):
         featurized_data = []
-        for tokens, mask in zip(training_dataset.tokens, training_dataset.masks):
-            sentence_feature_vector = CRFTagger.sent2features(tokens, mask if self.use_mask else None )
+        for tokens, mask, valence in zip(training_dataset.tokens, training_dataset.masks, training_dataset.valences):
+            sentence_feature_vector = CRFTagger.sent2features(tokens, mask if self.use_mask else None, valence if self.use_valence else None )
             featurized_data.append(sentence_feature_vector)
         return featurized_data
 
@@ -93,7 +99,7 @@ class CRFTagger:
             sorted_labels.remove("O")
 
         results = metrics.flat_classification_report(
-            reference, predictions, labels=sorted_labels
+            reference, predictions, labels=sorted_labels, digits=3
         )
 
         print(results)
@@ -116,15 +122,20 @@ def main():
     args = parser.parse_args()
 
     training_data = DataLoader(args.training_files, keep_iob=False)
-    test_data = DataLoader(args.test_files, keep_iob=False)
+    test_data = DataLoader(args.test_files, keep_iob=True)
 
-    crf_tagger = CRFTagger(c1=0.30, c2=0.3,use_mask=True)
+    crf_tagger = CRFTagger(c1=0.30, c2=0.3,use_mask=True, use_valence=True)
 
     crf_tagger.train(training_data)
 
     predictions = crf_tagger.predict(test_data)
 
-    crf_tagger.evaluate(predictions, test_data.iobs, remove_o=True)
+    span_indexes = get_span_indexes(test_data)
+
+    golden_reference = group_labels(test_data.iobs, span_indexes, iob_tags=True)
+    predictions = group_labels(predictions, span_indexes, iob_tags=False)
+
+    evaluate(predictions, golden_reference)
 
 
 # Press the green button in the gutter to run the script.
