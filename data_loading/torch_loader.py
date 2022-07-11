@@ -3,7 +3,7 @@ import copy
 import torch
 from torch.utils.data import Dataset, DataLoader
 from data_loading.loader import DataLoader as ECDataset
-#from torchtext.vocab import vocab
+from torchtext.vocab import vocab
 import argparse
 import itertools
 from collections import Counter, OrderedDict
@@ -12,14 +12,18 @@ from collections import Counter, OrderedDict
 class BILSTMDataset(Dataset):
 
     @staticmethod
-    def _build_vocab(tokens):
+    def _build_vocab(tokens, valence=False):
         all_tokens = itertools.chain(*tokens)
+        if valence:
+            all_tokens = [BILSTMDataset.get_special_valence_token(x) for x in tokens]
+        #print([type(x) for x in all_tokens])
         counted_tokens = Counter(all_tokens)
         sorted_by_freq_tuples = sorted(counted_tokens.items(), key=lambda x: x[1], reverse=True)
         ordered_dict = OrderedDict(sorted_by_freq_tuples)
         unk_token = '<unk>'
-        #dataset_vocab = vocab(OrderedDict([(token, 1) for token in tokens]), specials=[unk_token])
-        #return dataset_vocab
+        dataset_vocab = vocab(ordered_dict=ordered_dict, specials=[unk_token])
+        return dataset_vocab
+        # fix vocab issue here - does it work on the lab machine? if that's the case it might be enough
 
     @staticmethod
     def get_special_sep_char():
@@ -28,16 +32,22 @@ class BILSTMDataset(Dataset):
         return SPECIAL_SEP_CHAR
 
     @staticmethod
-    def get_special_valence_token(valence, unify_pos_neg=False):
+    def get_special_valence_token(valence:int, unify_pos_neg=False) -> str:
         valence_token_map = {
             0: "[NEUTRO]",
             1: "[POSITIVO]",
-            -1: "[NEGATIVO]"
+            2: "[POSITIVO]",
+            -1: "[NEGATIVO]",
+            -2: "[NEGATIVO]"
         }
 
-        valence = 1 if unify_pos_neg and valence == 1 or valence == -1 else valence
+        if unify_pos_neg:
+            valence = valence if valence == 0 else 1
 
-        return valence_token_map.get(valence)
+        result = valence_token_map.get(valence)
+        if result is None:
+            raise Exception(f"No mapping found for {result}")
+        return result
 
     @staticmethod
     def process_data_for_bilstm(tokens,iobs,valences, add_valence=False):
@@ -50,8 +60,6 @@ class BILSTMDataset(Dataset):
         iob_data = []
 
         for sentence_iob, sentence_tokens, sentence_valence in zip(iobs, tokens, valences):
-            print(sentence_iob, sentence_tokens)
-
             new_iob_sentence = [x for x in sentence_iob]
             new_tokens_sentence = [x for x in sentence_tokens]
             insertion_counter = 0 # tracks the difference from original sentence to the original one
@@ -79,6 +87,9 @@ class BILSTMDataset(Dataset):
                 new_tokens_sentence.insert(0, sentence_valence)
                 new_tokens_sentence.append(sentence_valence)
 
+            if not all([isinstance(x,str) for x in new_tokens_sentence]):
+                raise Exception(f"A None value was introduced here: {new_tokens_sentence}  vs {sentence_tokens} and sentence valence {sentence_valence}" )
+
             if len(new_iob_sentence) != len(new_tokens_sentence):
                 raise Exception("IOB and token sentence length dont' match !!!!!!!!!!!")
             token_data.append(new_tokens_sentence)
@@ -98,7 +109,19 @@ class BILSTMDataset(Dataset):
         self.tokens, self.iobs = BILSTMDataset.process_data_for_bilstm(self.tokens, self.iobs, self.valences, add_valence=True)
         # the question is whether to do the transformation on the fly (fetch time) or at initialization
         # given the small size of data - initialization is best
-        self.vocab = BILSTMDataset._build_vocab(self.dataset.tokens)
+
+        self.vocab = BILSTMDataset._build_vocab(self.tokens)
+        self.iob_mapping = BILSTMDataset._build_vocab(self.iobs)
+        self.valence_mapping = BILSTMDataset._build_vocab(self.valences, valence=True)
+        self.token_ids = [self.vocab(sent) for sent in self.tokens]
+        self.iob_ids = [self.iob_mapping(sent) for sent in self.iobs]
+        self.valence_ids = [self.valence_mapping([BILSTMDataset.get_special_valence_token(sent)]) for sent in self.valences]
+
+        print(self.token_ids[0])
+        print(self.iob_ids[0])
+        print(self.valence_ids[0])
+        print(self.tokens[0])
+        print(self.iobs[0])
         # transformation to vectors and also mapping IOB, MASK to IDs, VALENCE
 
     def __len__(self):
