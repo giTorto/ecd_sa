@@ -1,7 +1,9 @@
 import torch.nn as nn
 from torchcrf import CRF
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from pytorch_lightning import LightningModule
 import argparse
+import torch
 
 # It loads the external Word Embeddings (eg FastText, word2vect etc.) into the embedding layer of pytorch
 def custom_emb_layer(weights_matrix, non_trainable=False):
