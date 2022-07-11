@@ -6,6 +6,7 @@ from data_loading.loader import DataLoader as ECDataset
 from torchtext.vocab import vocab
 import argparse
 import itertools
+from torch.nn.utils.rnn import pad_sequence
 from collections import Counter, OrderedDict
 
 
@@ -94,8 +95,24 @@ class BILSTMDataset(Dataset):
                 raise Exception("IOB and token sentence length dont' match !!!!!!!!!!!")
             token_data.append(new_tokens_sentence)
             iob_data.append(new_iob_sentence)
-            print(new_tokens_sentence, new_iob_sentence)
+            #print(new_tokens_sentence, new_iob_sentence)
         return token_data, iob_data
+
+    @staticmethod
+    def add_padding(tokens):
+        pad_token_id = 0
+        padded_sequence = pad_sequence(tokens, padding_value=pad_token_id, batch_first=True)
+        pad_mask = ~(padded_sequence == pad_token_id)
+        return padded_sequence, pad_mask.int()
+
+    def show_first_example(self):
+        print(self.token_ids[0])
+        print(self.tokens_mask[0])
+        print(self.iob_ids[0])
+        print(self.iob_mask[0])
+        print(self.valence_ids[0])
+        print(self.tokens[0])
+        print(self.iobs[0])
 
     'Characterizes a dataset for PyTorch'
     def __init__(self, data_files):
@@ -113,15 +130,11 @@ class BILSTMDataset(Dataset):
         self.vocab = BILSTMDataset._build_vocab(self.tokens)
         self.iob_mapping = BILSTMDataset._build_vocab(self.iobs)
         self.valence_mapping = BILSTMDataset._build_vocab(self.valences, valence=True)
-        self.token_ids = [self.vocab(sent) for sent in self.tokens]
-        self.iob_ids = [self.iob_mapping(sent) for sent in self.iobs]
-        self.valence_ids = [self.valence_mapping([BILSTMDataset.get_special_valence_token(sent)]) for sent in self.valences]
-
-        print(self.token_ids[0])
-        print(self.iob_ids[0])
-        print(self.valence_ids[0])
-        print(self.tokens[0])
-        print(self.iobs[0])
+        #self.token_ids, self.tokens_mask = BILSTMDataset.add_padding([torch.tensor(self.vocab(sent)) for sent in self.tokens])
+        self.token_ids = [torch.tensor(self.vocab(sent)) for sent in self.tokens]
+        #self.iob_ids, self.iob_mask = BILSTMDataset.add_padding([torch.tensor(self.iob_mapping(sent)) for sent in self.iobs])
+        self.iob_ids = [torch.tensor(self.iob_mapping(sent)) for sent in self.iobs]
+        self.valence_ids = [torch.tensor(self.valence_mapping([BILSTMDataset.get_special_valence_token(sent)])) for sent in self.valences]
         # transformation to vectors and also mapping IOB, MASK to IDs, VALENCE
 
     def __len__(self):

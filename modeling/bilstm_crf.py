@@ -1,7 +1,7 @@
 import torch.nn as nn
 from torchcrf import CRF
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-
+import argparse
 
 # It loads the external Word Embeddings (eg FastText, word2vect etc.) into the embedding layer of pytorch
 def custom_emb_layer(weights_matrix, non_trainable=False):
@@ -40,3 +40,24 @@ class CRF_LSTM(nn.Module):
         utt_encoded, (_, _) = self.utt_encoder(embs)
         utt_encoded = self.hid2tag(utt_encoded)
         return self.crf.decode(utt_encoded)
+
+
+def create_argument_parser():
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('--train','--training-files',  action="store", dest="training_files",nargs='+',
+                        help='the training file')
+    parser.add_argument('--test','--test-files',  action="store", dest="test_files",nargs='+',
+                        help='the test file')
+
+    return parser
+
+
+def main():
+    # Use a breakpoint in the code line below to debug your script.
+    parser = create_argument_parser()
+    args = parser.parse_args()
+
+
+# Press the green button in the gutter to run the script.
+if __name__ == '__main__':
+    main()
