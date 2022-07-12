@@ -130,10 +130,8 @@ class BILSTMDataset(Dataset):
         self.vocab = BILSTMDataset._build_vocab(self.tokens)
         self.iob_mapping = BILSTMDataset._build_vocab(self.iobs)
         self.valence_mapping = BILSTMDataset._build_vocab(self.valences, valence=True)
-        #self.token_ids, self.tokens_mask = BILSTMDataset.add_padding([torch.tensor(self.vocab(sent)) for sent in self.tokens])
-        self.token_ids = [torch.tensor(self.vocab(sent)) for sent in self.tokens]
-        #self.iob_ids, self.iob_mask = BILSTMDataset.add_padding([torch.tensor(self.iob_mapping(sent)) for sent in self.iobs])
-        self.iob_ids = [torch.tensor(self.iob_mapping(sent)) for sent in self.iobs]
+        self.token_ids, self.tokens_mask = BILSTMDataset.add_padding([torch.tensor(self.vocab(sent)) for sent in self.tokens])
+        self.iob_ids, self.iob_mask = BILSTMDataset.add_padding([torch.tensor(self.iob_mapping(sent)) for sent in self.iobs])
         self.valence_ids = [torch.tensor(self.valence_mapping([BILSTMDataset.get_special_valence_token(sent)])) for sent in self.valences]
         # transformation to vectors and also mapping IOB, MASK to IDs, VALENCE
 
@@ -144,13 +142,17 @@ class BILSTMDataset(Dataset):
     def __getitem__(self, index):
         'Generates one sample of data'
         # Select sample
-        ID = self.list_IDs[index]
 
         # Load data and get label
-        X = torch.load('data/' + ID + '.pt')
-        y = self.labels[ID]
+        dict_x = {
+            "source": self.token_ids[index],
+            "mask": self.tokens_mask[index],
+            "target": self.iob_ids[index]
+        }
 
-        return X, y
+        y = self.iob_ids[index]
+
+        return dict_x, y
 
 # steps
 

@@ -1,3 +1,4 @@
 data/
 .idea
 joint_model_data/
+scp_stuff.sh
