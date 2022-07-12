@@ -16,9 +16,9 @@ import fasttext.util
 
 # It loads the external Word Embeddings (eg FastText, word2vect etc.) into the embedding layer of pytorch
 def custom_emb_layer(weights_matrix, non_trainable=False):
-    num_embeddings, embedding_dim = weights_matrix.size()
+    num_embeddings, embedding_dim =  weights_matrix.get_input_matrix().shape
     emb_layer = nn.Embedding(num_embeddings, embedding_dim)
-    emb_layer.load_state_dict({'weight': weights_matrix})
+    emb_layer.load_state_dict({'weight': torch.tensor(weights_matrix.get_input_matrix())})
     if non_trainable:
         emb_layer.weight.requires_grad = False
 
@@ -71,6 +71,11 @@ class CRF_LSTM(LightningModule):
         self, loss: Tensor, optimizer: Optional[Optimizer], optimizer_idx: Optional[int], *args, **kwargs
     ) -> None:
         loss.backward()
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+            self.parameters(), lr=1e-3)
+        return optimizer
 
 
 def create_argument_parser():
