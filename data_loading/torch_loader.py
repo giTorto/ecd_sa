@@ -133,6 +133,7 @@ class BILSTMDataset(Dataset):
         self.token_ids, self.tokens_mask = BILSTMDataset.add_padding([torch.tensor(self.vocab(sent)) for sent in self.tokens])
         self.iob_ids, self.iob_mask = BILSTMDataset.add_padding([torch.tensor(self.iob_mapping(sent)) for sent in self.iobs])
         self.valence_ids = [torch.tensor(self.valence_mapping([BILSTMDataset.get_special_valence_token(sent)])) for sent in self.valences]
+        self.seq_len = len(self.token_ids[0])
         # transformation to vectors and also mapping IOB, MASK to IDs, VALENCE
 
     def __len__(self):
@@ -147,7 +148,8 @@ class BILSTMDataset(Dataset):
         dict_x = {
             "source": self.token_ids[index],
             "mask": self.tokens_mask[index],
-            "target": self.iob_ids[index]
+            "target": self.iob_ids[index],
+            "seq_len": self.seq_len
         }
 
         y = self.iob_ids[index]

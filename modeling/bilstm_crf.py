@@ -35,9 +35,10 @@ class CRF_LSTM(LightningModule):
         self.crf = CRF(n_targets)  # Number of output labels
         self.dropout = nn.Dropout(0.2)
 
-    def training_step(self, train_batch) -> STEP_OUTPUT:
-        x, y = train_batch
-        embs = self.dropout(self.embedding(x['source']).permute(1, 0, 2))  # sequence len, batch_size, embedding size
+    def training_step(self, x,y) -> STEP_OUTPUT:
+        print(x)
+        print(y)
+        embs = self.dropout(self.embedding(x['source']).permute(x['seq_lengths'], 64, 300))  # sequence len, batch_size, embedding size
         packed_input = pack_padded_sequence(embs, x['seq_lengths'].cpu())
         packed_output, (_, _) = self.utt_encoder(packed_input)
         utt_encoded, input_sizes = pad_packed_sequence(packed_output)
@@ -48,9 +49,10 @@ class CRF_LSTM(LightningModule):
         self.log("train_loss", loss)
         return loss
 
-    def validation_step(self, val_batch) -> STEP_OUTPUT:
-        x, y = val_batch
-        embs = self.dropout(self.embedding(x['source']).permute(1, 0, 2))  # sequence len, batch_size, embedding size
+    def validation_step(self, x,y) -> STEP_OUTPUT:
+        print(x)
+        print(y)
+        embs = self.dropout(self.embedding(x['source']).permute(x['seq_lengths'], 64, 300))  # sequence len, batch_size, embedding size
         packed_input = pack_padded_sequence(embs, x['seq_lengths'].cpu())
         packed_output, (_, _) = self.utt_encoder(packed_input)
         utt_encoded, input_sizes = pad_packed_sequence(packed_output)
