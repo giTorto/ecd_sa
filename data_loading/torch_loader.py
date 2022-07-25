@@ -133,7 +133,7 @@ class BILSTMDataset(Dataset):
         self.token_ids, self.tokens_mask = BILSTMDataset.add_padding([torch.tensor(self.vocab(sent),dtype=torch.int) for sent in self.tokens])
         self.iob_ids, self.iob_mask = BILSTMDataset.add_padding([torch.tensor(self.iob_mapping(sent),dtype=torch.int) for sent in self.iobs])
         self.valence_ids = [torch.tensor(self.valence_mapping([BILSTMDataset.get_special_valence_token(sent)])) for sent in self.valences]
-        self.seq_len = torch.tensor(len(self.token_ids), dtype=torch.int64)
+        self.seq_len = torch.tensor(len(self.token_ids), dtype=torch.int64) # this is wrong: TODO: fix here
 
         # transformation to vectors and also mapping IOB, MASK to IDs, VALENCE
 

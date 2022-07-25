@@ -28,13 +28,13 @@ def custom_emb_layer(weights_matrix, non_trainable=False):
 class CRF_LSTM(LightningModule):
     def __init__(self, weights_matrix, n_targets, seq_len, num_embeddings):
         super(CRF_LSTM, self).__init__()
-        self.truncated_bptt_steps = 5
+        #self.truncated_bptt_steps = 5
 
-        self.hidden = 300
         #self.embedding, num_embeddings, self.embedding_dim = custom_emb_layer(weights_matrix, True)
         self.embedding_dim = 256
+        self.hidden = self.embedding_dim
         self.embedding = nn.Embedding(num_embeddings,self.embedding_dim,padding_idx=0)
-        self.utt_encoder = nn.LSTM(self.embedding_dim, self.hidden // 2, bidirectional=True, num_layers=1)
+        self.utt_encoder = nn.LSTM(input_size=self.embedding_dim, hidden_size=self.hidden // 2, bidirectional=True, num_layers=1)
         self.hid2tag = nn.Linear(self.hidden, n_targets)
         self.crf = CRF(n_targets)  # Number of output labels
         self.dropout = nn.Dropout(0.2)
@@ -65,13 +65,11 @@ class CRF_LSTM(LightningModule):
         seq_len = batch[2]
         target = batch[3]
 
-        self.log("Batch size", len(batch))
-
         embedded = self.embedding(source)
-
         embs = self.dropout(embedded.permute(1,0,2))  # sequence len, batch_size, embedding size
-        packed_input = pack_padded_sequence(embs, seq_len)
-        packed_output, (_, _) = self.utt_encoder(packed_input)
+        packed_input = pack_padded_sequence(embs, seq_len.cpu().numpy())
+        self.log("The packed input is ", embs.shape)
+        packed_output, (ht, ct) = self.utt_encoder(packed_input)
         utt_encoded, input_sizes = pad_packed_sequence(packed_output)
         targets = target.permute(1, 0)
         mask_pad = mask.permute(1, 0)  # 0 for pad tokens 1 for the rest
@@ -127,7 +125,15 @@ def main():
     train_dataloader = DataLoader(training_data, batch_size=64, shuffle=True)
     val_dataloader = DataLoader(val_data, batch_size=64, shuffle=True)
 
-    print(training_data.token_ids)
+    print(training_data.token_ids[0], training_data.seq_len) # the sequence length value is simply wrong
+    """
+    tensor([  2,  17,   1, 249,   2,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
+       dtype=torch.int32) tensor(3417)
+       """
 
     model = CRF_LSTM(ft, n_targets=3, seq_len=training_data.seq_len, num_embeddings=len(training_data.vocab))
 
