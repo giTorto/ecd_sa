@@ -23,6 +23,7 @@ class BILSTMDataset(Dataset):
         ordered_dict = OrderedDict(sorted_by_freq_tuples)
         unk_token = '<unk>'
         dataset_vocab = vocab(ordered_dict=ordered_dict, specials=[unk_token])
+        dataset_vocab.set_default_index(dataset_vocab[unk_token])
         return dataset_vocab
         # fix vocab issue here - does it work on the lab machine? if that's the case it might be enough
 
@@ -103,7 +104,7 @@ class BILSTMDataset(Dataset):
         pad_token_id = 0
         padded_sequence = pad_sequence(tokens, padding_value=pad_token_id, batch_first=True)
         pad_mask = ~(padded_sequence == pad_token_id)
-        return padded_sequence, pad_mask.int()
+        return padded_sequence, pad_mask
 
     def show_first_example(self):
         print(self.token_ids[0])
@@ -115,7 +116,7 @@ class BILSTMDataset(Dataset):
         print(self.iobs[0])
 
     'Characterizes a dataset for PyTorch'
-    def __init__(self, data_files):
+    def __init__(self, data_files, token_vocab=None, iob_mapping_vocab=None):
         'Initialization'
         self.dataset = ECDataset(data_files)
         self.tokens = self.dataset.tokens
@@ -127,14 +128,18 @@ class BILSTMDataset(Dataset):
         # the question is whether to do the transformation on the fly (fetch time) or at initialization
         # given the small size of data - initialization is best
 
-        self.vocab = BILSTMDataset._build_vocab(self.tokens)
-        self.iob_mapping = BILSTMDataset._build_vocab(self.iobs)
+        self.vocab = token_vocab
+        if token_vocab is None:
+            self.vocab = BILSTMDataset._build_vocab(self.tokens)
+
+        self.iob_mapping = iob_mapping_vocab
+        if iob_mapping_vocab is None:
+            self.iob_mapping = BILSTMDataset._build_vocab(self.iobs)
         self.valence_mapping = BILSTMDataset._build_vocab(self.valences, valence=True)
         self.token_ids, self.tokens_mask = BILSTMDataset.add_padding([torch.tensor(self.vocab(sent),dtype=torch.int) for sent in self.tokens])
-        self.iob_ids, self.iob_mask = BILSTMDataset.add_padding([torch.tensor(self.iob_mapping(sent),dtype=torch.int) for sent in self.iobs])
-        self.valence_ids = [torch.tensor(self.valence_mapping([BILSTMDataset.get_special_valence_token(sent)])) for sent in self.valences]
-        self.seq_len = torch.tensor(len(self.token_ids), dtype=torch.int64) # this is wrong: TODO: fix here
-
+        self.iob_ids, self.iob_mask = BILSTMDataset.add_padding([torch.tensor(self.iob_mapping(sent),dtype=torch.long) for sent in self.iobs])
+        self.valence_ids = [torch.tensor(self.valence_mapping([BILSTMDataset.get_special_valence_token(sent)]), dtype=torch.long) for sent in self.valences]
+        self.seq_len = torch.tensor(len(self.token_ids[0]), dtype=torch.int64)
         # transformation to vectors and also mapping IOB, MASK to IDs, VALENCE
 
     def __len__(self):

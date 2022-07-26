@@ -40,8 +40,7 @@ class CRF_LSTM(LightningModule):
         self.dropout = nn.Dropout(0.2)
         self.seq_len = seq_len
 
-
-    def training_step(self, batch, batch_idx,hiddens) -> STEP_OUTPUT:
+    def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         x = batch[0]
         mask = batch[1]
         seq_len = batch[2]
@@ -68,7 +67,6 @@ class CRF_LSTM(LightningModule):
         embedded = self.embedding(source)
         embs = self.dropout(embedded.permute(1,0,2))  # sequence len, batch_size, embedding size
         packed_input = pack_padded_sequence(embs, seq_len.cpu().numpy())
-        self.log("The packed input is ", embs.shape)
         packed_output, (ht, ct) = self.utt_encoder(packed_input)
         utt_encoded, input_sizes = pad_packed_sequence(packed_output)
         targets = target.permute(1, 0)
@@ -120,24 +118,16 @@ def main():
     ft = fasttext.load_model('cc.it.300.bin')
 
     training_data = BILSTMDataset(args.training_files) # data loader required here
-    val_data = BILSTMDataset(args.val_files)
+    val_data = BILSTMDataset(args.val_files, token_vocab=training_data.vocab, iob_mapping_vocab=training_data.iob_mapping)
 
     train_dataloader = DataLoader(training_data, batch_size=64, shuffle=True)
     val_dataloader = DataLoader(val_data, batch_size=64, shuffle=True)
 
-    print(training_data.token_ids[0], training_data.seq_len) # the sequence length value is simply wrong
-    """
-    tensor([  2,  17,   1, 249,   2,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
-       dtype=torch.int32) tensor(3417)
-       """
+    #print(training_data.token_ids[0], training_data.seq_len) # the sequence length value is simply wrong
 
-    model = CRF_LSTM(ft, n_targets=3, seq_len=training_data.seq_len, num_embeddings=len(training_data.vocab))
+    model = CRF_LSTM(ft, n_targets=len(training_data.iob_mapping), seq_len=training_data.seq_len, num_embeddings=len(training_data.vocab))
 
-    trainer = Trainer()
+    trainer = Trainer(max_epochs=20)
 
     trainer.fit(model, train_dataloader, val_dataloader)
 
