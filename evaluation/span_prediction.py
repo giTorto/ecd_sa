@@ -1,5 +1,5 @@
 import warnings
-from typing import List
+from typing import List, Tuple
 from data_loading.loader import DataLoader
 from collections import Counter
 from sklearn_crfsuite import metrics
@@ -39,12 +39,12 @@ def get_span_indexes(input_data:DataLoader):
     return span_indexes
 
 
-def print_span_indexes(test_data: DataLoader, span_indexes: List[tuple[int, int]]):
+def print_span_indexes(test_data: DataLoader, span_indexes: List[Tuple[int, int]]):
     for span_index, iob, mask in zip(span_indexes, test_data.iobs, test_data.masks):
         print(span_index, iob, mask)
 
 
-def group_labels(iobs: List[str], span_indexes:List[tuple[int,int]], iob_tags:bool=False):
+def group_labels(iobs: List[str], span_indexes:List[Tuple[int,int]], iob_tags:bool=False):
     predictions = []
     for iob_list, spans in zip(iobs, span_indexes):
         fu_predictions = []
@@ -77,6 +77,16 @@ def evaluate(predictions, reference):
 
     print(results)
     return results
+
+
+def unified_evaluation(predictions, test_dataset):
+
+    span_indexes = get_span_indexes(test_dataset)
+
+    golden_reference = group_labels(test_dataset.iobs, span_indexes, iob_tags=True)
+    predictions = group_labels(predictions, span_indexes, iob_tags=False)
+
+    evaluate(predictions, golden_reference)
 
 
 # the 2 types of evaluation: per FU / per span

@@ -13,7 +13,7 @@ from collections import Counter, OrderedDict
 class BILSTMDataset(Dataset):
 
     @staticmethod
-    def _build_vocab(tokens, valence=False):
+    def _build_vocab(tokens, valence=False, disable_unk=False):
         all_tokens = itertools.chain(*tokens)
         if valence:
             all_tokens = [BILSTMDataset.get_special_valence_token(x) for x in tokens]
@@ -21,9 +21,12 @@ class BILSTMDataset(Dataset):
         counted_tokens = Counter(all_tokens)
         sorted_by_freq_tuples = sorted(counted_tokens.items(), key=lambda x: x[1], reverse=True)
         ordered_dict = OrderedDict(sorted_by_freq_tuples)
-        unk_token = '<unk>'
-        dataset_vocab = vocab(ordered_dict=ordered_dict, specials=[unk_token])
-        dataset_vocab.set_default_index(dataset_vocab[unk_token])
+        if not disable_unk:
+            unk_token = '<unk>'
+            dataset_vocab = vocab(ordered_dict=ordered_dict, specials=[unk_token])
+            dataset_vocab.set_default_index(dataset_vocab[unk_token])
+        else:
+            dataset_vocab = vocab(ordered_dict=ordered_dict)
         return dataset_vocab
         # fix vocab issue here - does it work on the lab machine? if that's the case it might be enough
 
@@ -134,8 +137,8 @@ class BILSTMDataset(Dataset):
 
         self.iob_mapping = iob_mapping_vocab
         if iob_mapping_vocab is None:
-            self.iob_mapping = BILSTMDataset._build_vocab(self.iobs)
-        self.valence_mapping = BILSTMDataset._build_vocab(self.valences, valence=True)
+            self.iob_mapping = BILSTMDataset._build_vocab(self.iobs,disable_unk=True)
+        self.valence_mapping = BILSTMDataset._build_vocab(self.valences, valence=True, disable_unk=True)
         self.token_ids, self.tokens_mask = BILSTMDataset.add_padding([torch.tensor(self.vocab(sent),dtype=torch.int) for sent in self.tokens])
         self.iob_ids, self.iob_mask = BILSTMDataset.add_padding([torch.tensor(self.iob_mapping(sent),dtype=torch.long) for sent in self.iobs])
         self.valence_ids = [torch.tensor(self.valence_mapping([BILSTMDataset.get_special_valence_token(sent)]), dtype=torch.long) for sent in self.valences]
